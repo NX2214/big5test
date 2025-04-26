@@ -1,0 +1,174 @@
+{\rtf1\ansi\ansicpg1252\cocoartf2822
+\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fswiss\fcharset0 Helvetica;}
+{\colortbl;\red255\green255\blue255;}
+{\*\expandedcolortbl;;}
+\paperw11900\paperh16840\margl1440\margr1440\vieww11520\viewh8400\viewkind0
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
+
+\f0\fs24 \cf0 <!DOCTYPE html>\
+<html lang="en">\
+<head>\
+  <meta charset="UTF-8" />\
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />\
+  <title>Big Five Aspects Assessment</title>\
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>\
+  <style>\
+    body\{font-family:Arial,Helvetica,sans-serif;margin:0;padding:0;background:#f9fafb;color:#111\}\
+    .container\{max-width:800px;margin:0 auto;padding:2rem\}\
+    .card\{background:#fff;border-radius:12px;box-shadow:0 4px 10px rgba(0,0,0,.05);padding:2rem\}\
+    h1,h2\{text-align:center\}\
+    .question\{text-align:center;font-size:1.25rem;margin-bottom:1.5rem;min-height:4rem\}\
+    .options\{display:flex;justify-content:space-between;margin-bottom:1.5rem;flex-wrap:wrap\}\
+    .options label\{width:18%;text-align:center;cursor:pointer\}\
+    .progress\{height:8px;background:#e5e7eb;border-radius:4px;margin-bottom:1.5rem;overflow:hidden\}\
+    .progress-bar\{height:100%;background:#2563eb;width:0\}\
+    button\{padding:.75rem 1.5rem;border:none;border-radius:8px;font-size:1rem;cursor:pointer;background:#2563eb;color:#fff\}\
+    button[disabled]\{background:#9ca3af;cursor:not-allowed\}\
+    #result\{display:none\}\
+    canvas\{max-width:100%;margin-top:2rem\}\
+    .note\{font-size:.85rem;color:#6b7280;text-align:center\}\
+  </style>\
+</head>\
+<body>\
+  <div class="container">\
+    <div class="card" id="quiz">\
+      <h1>Big Five Aspects Assessment</h1>\
+      <div class="progress"><div class="progress-bar" id="bar"></div></div>\
+      <p class="question" id="qtext"></p>\
+      <div class="options" id="opts"></div>\
+      <div style="text-align:center">\
+        <button id="prev" disabled>Previous</button>\
+        <button id="next">Next</button>\
+      </div>\
+      <p class="note">Answer honestly \'96 there are no right or wrong answers.</p>\
+    </div>\
+\
+    <div class="card" id="result">\
+      <h2>Your Personality Profile</h2>\
+      <canvas id="radar"></canvas>\
+      <div id="summary"></div>\
+    </div>\
+  </div>\
+\
+<script>\
+// --- 1. Item pool ---------------------------------------------------------\
+// For brevity, only 20 sample items are included (2 per aspect). Replace or extend\
+// the array to the full 110 items (10 per aspect + validity items) using the\
+// public\uc0\u8209 domain keys at https://ipip.ori.org/BFASKeys.htm\
+const items=[\
+  // Neuroticism \'96 Withdrawal\
+  \{id:1, text:"Often feels blue.", aspect:"Withdrawal", domain:"Neuroticism", reverse:false\},\
+  \{id:2, text:"Is comfortable in unfamiliar social settings.", aspect:"Withdrawal", domain:"Neuroticism", reverse:true\},\
+  // Neuroticism \'96 Volatility\
+  \{id:3, text:"Gets upset easily.", aspect:"Volatility", domain:"Neuroticism", reverse:false\},\
+  \{id:4, text:"Rarely loses composure.", aspect:"Volatility", domain:"Neuroticism", reverse:true\},\
+  // Agreeableness \'96 Compassion\
+  \{id:5, text:"Feels others\'92 emotions.", aspect:"Compassion", domain:"Agreeableness", reverse:false\},\
+  \{id:6, text:"Is detached from others\'92 feelings.", aspect:"Compassion", domain:"Agreeableness", reverse:true\},\
+  // Agreeableness \'96 Politeness\
+  \{id:7, text:"Is respectful of others.", aspect:"Politeness", domain:"Agreeableness", reverse:false\},\
+  \{id:8, text:"Insults people.", aspect:"Politeness", domain:"Agreeableness", reverse:true\},\
+  // Conscientiousness \'96 Industriousness\
+  \{id:9, text:"Completes tasks successfully.", aspect:"Industriousness", domain:"Conscientiousness", reverse:false\},\
+  \{id:10, text:"Fails to finish what he/she starts.", aspect:"Industriousness", domain:"Conscientiousness", reverse:true\},\
+  // Conscientiousness \'96 Orderliness\
+  \{id:11, text:"Likes order.", aspect:"Orderliness", domain:"Conscientiousness", reverse:false\},\
+  \{id:12, text:"Leaves a mess in his/her room.", aspect:"Orderliness", domain:"Conscientiousness", reverse:true\},\
+  // Extraversion \'96 Enthusiasm\
+  \{id:13, text:"Is talkative.", aspect:"Enthusiasm", domain:"Extraversion", reverse:false\},\
+  \{id:14, text:"Seldom discusses feelings.", aspect:"Enthusiasm", domain:"Extraversion", reverse:true\},\
+  // Extraversion \'96 Assertiveness\
+  \{id:15, text:"Has leadership qualities.", aspect:"Assertiveness", domain:"Extraversion", reverse:false\},\
+  \{id:16, text:"Finds it difficult to influence people.", aspect:"Assertiveness", domain:"Extraversion", reverse:true\},\
+  // Openness \'96 Openness\
+  \{id:17, text:"Enjoys the beauty of nature.", aspect:"Openness", domain:"Openness/Intellect", reverse:false\},\
+  \{id:18, text:"Is indifferent to art and music.", aspect:"Openness", domain:"Openness/Intellect", reverse:true\},\
+  // Openness \'96 Intellect\
+  \{id:19, text:"Likes to solve complex problems.", aspect:"Intellect", domain:"Openness/Intellect", reverse:false\},\
+  \{id:20, text:"Avoids difficult reading material.", aspect:"Intellect", domain:"Openness/Intellect", reverse:true\}\
+];\
+\
+// --- 2. Globals -----------------------------------------------------------\
+let current=0;\
+const responses=[];  // \{id, value\}\
+const qtext=document.getElementById('qtext');\
+const opts=document.getElementById('opts');\
+const prev=document.getElementById('prev');\
+const next=document.getElementById('next');\
+const bar=document.getElementById('bar');\
+\
+// --- 3. Render question ---------------------------------------------------\
+function render()\{\
+  const q=items[current];\
+  qtext.textContent=`$\{current+1\}. $\{q.text\}`;\
+  opts.innerHTML='';\
+  const saved=responses[current]?.value || 0;\
+  const labels=["Strongly Disagree","Disagree","Neutral","Agree","Strongly Agree"];\
+  for(let i=1;i<=5;i++)\{\
+    const label=document.createElement('label');\
+    label.innerHTML=`<input type="radio" name="resp" value="$\{i\}" $\{saved===i?'checked':''\}>$\{labels[i-1]\}`;\
+    opts.appendChild(label);\
+  \}\
+  prev.disabled=current===0;\
+  next.textContent=current===items.length-1?'Finish':'Next';\
+  bar.style.width=((current)/items.length)*100+'%';\
+\}\
+\
+// --- 4. Navigation --------------------------------------------------------\
+function saveCurrent()\{\
+  const sel=opts.querySelector('input[name="resp"]:checked');\
+  if(sel)\{responses[current]=\{id:items[current].id,value:parseInt(sel.value)\}\}\
+\}\
+\
+prev.addEventListener('click',()=>\{saveCurrent();current--;render();\});\
+next.addEventListener('click',()=>\{\
+  saveCurrent();\
+  if(!responses[current])\{alert('Please choose an option before proceeding.');return;\}\
+  if(current<items.length-1)\{current++;render();\}\
+  else\{bar.style.width='100%';showResults();\}\
+\});\
+\
+// --- 5. Scoring -----------------------------------------------------------\
+function showResults()\{\
+  document.getElementById('quiz').style.display='none';\
+  const scores=\{\};\
+  // initialize\
+  items.forEach(it=>\{if(!scores[it.aspect])scores[it.aspect]=[];\});\
+  // collect\
+  responses.forEach(r=>\{\
+    const item=items.find(it=>it.id===r.id);\
+    let val=r.value;\
+    if(item.reverse) val=6-val; // reverse-code\
+    scores[item.aspect].push(val);\
+  \});\
+  // compute means\
+  const aspects=Object.keys(scores).map(a=>(\{\
+    aspect:a,\
+    mean:scores[a].reduce((s,v)=>s+v,0)/scores[a].length\
+  \}));\
+  // group to domains\
+  const domains=\{\};\
+  aspects.forEach(o=>\{\
+    const domain=items.find(it=>it.aspect===o.aspect).domain;\
+    if(!domains[domain])domains[domain]=[];\
+    domains[domain].push(o.mean);\
+  \});\
+  const domainMeans=Object.keys(domains).map(d=>(\{domain:d,mean:domains[d].reduce((s,v)=>s+v,0)/domains[d].length\}));\
+\
+  // narrative summary\
+  const summary=document.getElementById('summary');\
+  summary.innerHTML='<h3>Domain Averages (1\'965)</h3>' + domainMeans.map(d=>`<p><strong>$\{d.domain\}:</strong> $\{d.mean.toFixed(2)\}</p>`).join('');\
+\
+  // radar chart data\
+  const ctx=document.getElementById('radar').getContext('2d');\
+  new Chart(ctx,\{type:'radar',data:\{labels:aspects.map(a=>a.aspect),datasets:[\{label:'Your scores',data:aspects.map(a=>a.mean),fill:true\}]\},options:\{scales:\{r:\{min:1,max:5,ticks:\{stepSize:1\}\}\}\}\});\
+\
+  document.getElementById('result').style.display='block';\
+\}\
+\
+render();\
+</script>\
+\
+</body>\
+</html>\
+}
